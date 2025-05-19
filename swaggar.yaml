@@ -1,0 +1,339 @@
+openapi: 3.0.3
+info:
+  title: Bill Aggregation Service
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Check service health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+  /users:
+    post:
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: integer
+                  message:
+                    type: string
+  /users/{user_id}:
+    get:
+      summary: Get a user by ID
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: integer
+                  email:
+                    type: string
+                  created_at:
+                    type: string
+    put:
+      summary: Update a user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+    delete:
+      summary: Delete a user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /accounts/link:
+    post:
+      summary: Link a utility account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                provider:
+                  type: string
+                credentials:
+                  type: string
+      responses:
+        '200':
+          description: Account linked
+          content:
+            application/json:
+              schema彼此
+
+#### 8. Unit Test
+Add a unit test for the `UserUsecase`.
+
+<xaiArtifact artifact_id="a265e299-4f17-4802-b766-4ece601b6473" artifact_version_id="4952f58f-0b0c-4ef3-9882-2224310e690f" title="main_test.go" contentType="text/go">
+package main
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/go-redis/redismock/v8"
+	"github.com/stretchr/testify/assert"
+	"bill-service/internal/adapters/cache"
+	"bill-service/internal/domain"
+	"bill-service/internal/ports"
+	"bill-service/internal/usecases"
+)
+
+// MockUserRepository implements UserRepository for testing
+type MockUserRepository struct {
+	users map[int]domain.User
+}
+
+func (r *MockUserRepository) SaveUser(ctx context.Context, user domain.User) (int, error) {
+	user.ID = len(r.users) + 1
+	r.users[user.ID] = user
+	return user.ID, nil
+}
+
+func (r *MockUserRepository) GetUserByID(ctx context.Context, userID int) (domain.User, error) {
+	user, exists := r.users[userID]
+	if !exists {
+		return domain.User{}, sql.ErrNoRows
+	}
+	return user, nil
+}
+
+func (r *MockUserRepository) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	for _, user := range r.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return domain.User{}, sql.ErrNoRows
+}
+
+func (r *MockUserRepository) UpdateUser(ctx context.Context, user domain.User) error {
+	if _, exists := r.users[user.ID]; !exists {
+		return sql.ErrNoRows
+	}
+	r.users[user.ID] = user
+	return nil
+}
+
+func (r *MockUserRepository) DeleteUser(ctx context.Context, userID int) (bool, error) {
+	if _, exists := r.users[userID]; !exists {
+		return false, nil
+	}
+	delete(r.users, userID)
+	return true, nil
+}
+
+// Existing mock repositories
+type mockAccountRepo struct{}
+
+func (r *mockAccountRepo) SaveAccount(ctx context.Context, account domain.Account) (int, error) {
+	return 1, nil
+}
+func (r *mockAccountRepo) GetAccountsByUserID(ctx context.Context, userID int) ([]domain.Account, error) {
+	return []domain.Account{{ID: 1, UserID: userID, Provider: "electricity", Credentials: "test-cred"}}, nil
+}
+func (r *mockAccountRepo) DeleteAccount(ctx context.Context, accountID int) (bool, error) {
+	return true, nil
+}
+func (r *mockAccountRepo) SaveBill(ctx context.Context, bill domain.Bill) error {
+	return nil
+}
+
+type mockProvider struct{}
+
+func (p *mockProvider) FetchBills(ctx context.Context, account domain.Account) ([]domain.Bill, error) {
+	return []domain.Bill{
+		{
+			AccountID: account.ID,
+			Provider:  account.Provider,
+			Amount:    50.0,
+			DueDate:   time.Now(),
+			Status:    "unpaid",
+		},
+	}, nil
+}
+
+func TestCreateUser(t *testing.T) {
+	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	usecase := usecases.NewUserUsecase(repo)
+
+	user := domain.User{
+		Email:        "test@example.com",
+		PasswordHash: "hashed_password",
+		CreatedAt:    time.Now(),
+	}
+
+	userID, err := repo.SaveUser(context.Background(), user)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, userID)
+
+	savedUser, err := repo.GetUserByID(context.Background(), userID)
+	assert.NoError(t, err)
+	assert.Equal(t, user.Email, savedUser.Email)
+}
+
+func TestGetUser(t *testing.T) {
+	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	usecase := usecases.NewUserUsecase(repo)
+
+	user := domain.User{
+		ID:           1,
+		Email:        "test@example.com",
+		PasswordHash: "hashed_password",
+		CreatedAt:    time.Now(),
+	}
+	repo.users[1] = user
+
+	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.Equal(t, user.Email, fetchedUser.Email)
+
+	_, err = usecase.repo.GetUserByID(context.Background(), 999)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
+}
+
+func TestUpdateUser(t *testing.T) {
+	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	usecase := usecases.NewUserUsecase(repo)
+
+	user := domain.User{
+		ID:           1,
+		Email:        "test@example.com",
+		PasswordHash: "hashed_password",
+		CreatedAt:    time.Now(),
+	}
+	repo.users[1] = user
+
+	updatedUser := domain.User{
+		ID:           1,
+		Email:        "new@example.com",
+		PasswordHash: "new_hashed_password",
+	}
+	err := usecase.repo.UpdateUser(context.Background(), updatedUser)
+	assert.NoError(t, err)
+
+	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.Equal(t, updatedUser.Email, fetchedUser.Email)
+	assert.Equal(t, updatedUser.PasswordHash, fetchedUser.PasswordHash)
+}
+
+func TestDeleteUser(t *testing.T) {
+	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	usecase := usecases.NewUserUsecase(repo)
+
+	user := domain.User{
+		ID:           1,
+		Email:        "test@example.com",
+		PasswordHash: "hashed_password",
+		CreatedAt:    time.Now(),
+	}
+	repo.users[1] = user
+
+	deleted, err := usecase.repo.DeleteUser(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.True(t, deleted)
+
+	_, err = usecase.repo.GetUserByID(context.Background(), 1)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
+}
+
+func TestFetchBills(t *testing.T) {
+	db, _ := redismock.NewClientMock()
+	cacheSvc := cache.NewRedisClient("") // Mocked internally
+	repo := &mockAccountRepo{}
+	provider := &mockProvider{}
+
+	usecase := NewBillUsecase(repo, provider, cacheSvc)
+
+	// Mock Redis rate limit
+	db.ExpectIncr("rate_limit:electricity:1").SetVal(1)
+	db.ExpectExpire("rate_limit:electricity:1", time.Minute).SetVal(true)
+
+	bills, err := usecase.fetchBillsWithRetry(context.Background(), domain.Account{
+		ID:       1,
+		Provider: "electricity",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, bills, 1)
+	assert.Equal(t, 50.0, bills[0].Amount)
+}
