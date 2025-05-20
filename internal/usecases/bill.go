@@ -16,12 +16,12 @@ import (
 // BillUsecase handles bill-related business logic
 type BillUsecase struct {
 	repo     ports.AccountRepository
-	provider ports.ProviderService
+	provider ports.ProviderAPIService
 	cache    ports.CacheService
 }
 
 // NewBillUsecase creates a new bill use case
-func NewBillUsecase(repo ports.AccountRepository, provider ports.ProviderService, cache ports.CacheService) *BillUsecase {
+func NewBillUsecase(repo ports.AccountRepository, provider ports.ProviderAPIService, cache ports.CacheService) *BillUsecase {
 	return &BillUsecase{repo: repo, provider: provider, cache: cache}
 }
 
@@ -35,7 +35,7 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch accounts
-	accounts, err := u.repo.GetAccountsByUserID(context.Background(), userID)
+	accounts, err := u.repo.GetAccountsByUserID(context.Background(), userIDStr)
 	if err != nil {
 		http.Error(w, "Failed to fetch accounts", http.StatusInternalServerError)
 		return
@@ -47,7 +47,7 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 
 	for _, acc := range accounts {
 		wg.Add(1)
-		go func(acc domain.Account) {
+		go func(acc domain.LinkedAccount) {
 			defer wg.Done()
 			bills, err := u.fetchBillsWithRetry(context.Background(), acc)
 			if err != nil {
@@ -85,9 +85,9 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.Account) ([]domain.Bill, error) {
-	key := fmt.Sprintf("rate_limit:%s:%d", acc.Provider, acc.ID)
-	cacheKey := fmt.Sprintf("bills:%d", acc.ID)
+func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.LinkedAccount) ([]domain.Bill, error) {
+	key := fmt.Sprintf("rate_limit:%s:%s", acc.ProviderID, acc.ID)
+	cacheKey := fmt.Sprintf("bills:%s", acc.ID)
 
 	// Rate limiting
 	if err := u.cache.RateLimit(ctx, key, 5, int64(time.Minute.Seconds())); err != nil {

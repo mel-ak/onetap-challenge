@@ -18,7 +18,7 @@ func NewHTTPProvider() *HTTPProvider {
 }
 
 // FetchBills fetches bills from a provider
-func (p *HTTPProvider) FetchBills(ctx context.Context, account domain.Account) ([]domain.Bill, error) {
+func (p *HTTPProvider) FetchBills(ctx context.Context, account domain.LinkedAccount) ([]domain.Bill, error) {
 	// Simulate slow or failing API
 	if rand.Float32() < 0.2 {
 		return nil, fmt.Errorf("provider API timeout")
@@ -26,11 +26,14 @@ func (p *HTTPProvider) FetchBills(ctx context.Context, account domain.Account) (
 
 	return []domain.Bill{
 		{
-			AccountID: account.ID,
-			Provider:  account.Provider,
-			Amount:    rand.Float64() * 100,
-			DueDate:   time.Now().AddDate(0, 0, rand.Intn(30)),
-			Status:    []string{"paid", "unpaid", "overdue"}[rand.Intn(3)],
+			LinkedAccountID: account.ID,
+			ProviderID:      account.ProviderID,
+			Amount:          rand.Float64() * 100,
+			DueDate:         time.Now().AddDate(0, 0, rand.Intn(30)),
+			Status:          []string{"paid", "unpaid", "overdue"}[rand.Intn(3)],
+			BillDate:        time.Now(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		},
 	}, nil
 }

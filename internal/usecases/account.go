@@ -44,9 +44,10 @@ func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account := domain.Account{
-		UserID:      req.UserID,
-		Provider:    req.Provider,
+	account := domain.LinkedAccount{
+		UserID:      strconv.Itoa(req.UserID),
+		ProviderID:  req.Provider,
+		AccountID:   req.Credentials,
 		Credentials: req.Credentials,
 		CreatedAt:   time.Now(),
 	}
@@ -68,13 +69,13 @@ func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 // DeleteAccount handles DELETE /accounts/{account_id}
 func (u *AccountUsecase) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	accountIDStr := mux.Vars(r)["account_id"]
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		http.Error(w, "Invalid account ID", http.StatusBadRequest)
-		return
-	}
+	// accountID, err := strconv.Atoi(accountIDStr)
+	// if err != nil {
+	// 	http.Error(w, "Invalid account ID", http.StatusBadRequest)
+	// 	return
+	// }
 
-	ok, err := u.repo.DeleteAccount(context.Background(), accountID)
+	ok, err := u.repo.DeleteAccount(context.Background(), accountIDStr)
 	if err != nil {
 		http.Error(w, "Failed to delete account", http.StatusInternalServerError)
 		return

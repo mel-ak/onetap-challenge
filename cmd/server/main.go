@@ -44,24 +44,50 @@ func runMigrations(dbConn string) error {
 	return nil
 }
 
+// @title Swagger Example API
+// @version 1.0
+// @description This is a sample server Petstore server.
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@swagger.io
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host petstore.swagger.io
+// @BasePath /v2
 func main() {
 	cfg := config.Config{
-		DBConn:    "postgres://onetapuser:onetappassword@localhost:5433/onetapdb?sslmode=disable",
-		RedisAddr: "localhost:6379",
-		Port:      ":8080",
+		Server: config.ServerConfig{
+			Port: "8081",
+		},
+		Database: config.DatabaseConfig{
+			Host:     "postgres",
+			Port:     "5432",
+			User:     "postgres",
+			Password: "postgres",
+			DBName:   "bill_aggregator",
+			SSLMode:  "disable",
+		},
+		Redis: config.RedisConfig{
+			Host: "localhost",
+			Port: "6379",
+		},
 	}
 
 	// Run migrations
-	if err := runMigrations(cfg.DBConn); err != nil {
+	if err := runMigrations(cfg.DBConn()); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	// Initialize adapters
-	dbRepo, err := repository.NewPostgresRepository(cfg.DBConn)
+	dbRepo, err := repository.NewPostgresRepository(cfg.DBConn())
 	if err != nil {
 		log.Fatalf("Failed to initialize repository: %v", err)
 	}
-	redisClient := cache.NewRedisClient(cfg.RedisAddr)
+	redisClient := cache.NewRedisClient(cfg.Redis.Host + ":" + cfg.Redis.Port)
 	providerSvc := provider.NewHTTPProvider()
 
 	// Initialize use cases
@@ -80,6 +106,6 @@ func main() {
 	r.HandleFunc("/bills", billUsecase.FetchBills).Methods("GET")
 	r.HandleFunc("/accounts/{account_id}", accountUsecase.DeleteAccount).Methods("DELETE")
 
-	log.Printf("Server starting on port %s", cfg.Port)
-	log.Fatal(http.ListenAndServe(cfg.Port, r))
+	log.Printf("Server starting on port %s", cfg.Server.Port)
+	log.Fatal(http.ListenAndServe(cfg.Server.Port, r))
 }

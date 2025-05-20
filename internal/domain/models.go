@@ -1,31 +1,57 @@
 package domain
 
-import "time"
+import (
+	"time"
+)
 
-// User represents a registered user
+// User represents a user in the system
 type User struct {
-	ID           int
-	Email        string
-	PasswordHash string
-	CreatedAt    time.Time
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Password  string    `json:"-"` // Password is not exposed in JSON
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Account represents a linked utility account
-type Account struct {
-	ID          int
-	UserID      int
-	Provider    string
-	Credentials string
-	CreatedAt   time.Time
+// Provider represents a utility provider
+type Provider struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	APIEndpoint string    `json:"api_endpoint"`
+	AuthType    string    `json:"auth_type"` // e.g., "oauth2", "api_key", "basic"
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// LinkedAccount represents a user's linked utility account
+type LinkedAccount struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	ProviderID  string    `json:"provider_id"`
+	AccountID   string    `json:"account_id"` // Provider's account ID
+	Credentials string    `json:"-"`          // Encrypted credentials
+	Status      string    `json:"status"`     // active, inactive, error
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Bill represents a utility bill
 type Bill struct {
-	ID        int
-	AccountID int
-	Provider  string
-	Amount    float64
-	DueDate   time.Time
-	Status    string
-	CreatedAt time.Time
+	ID              string    `json:"id"`
+	LinkedAccountID string    `json:"linked_account_id"`
+	ProviderID      string    `json:"provider_id"`
+	Amount          float64   `json:"amount"`
+	DueDate         time.Time `json:"due_date"`
+	Status          string    `json:"status"` // paid, unpaid, overdue
+	BillDate        time.Time `json:"bill_date"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// BillSummary represents aggregated bill information
+type BillSummary struct {
+	TotalAmount  float64 `json:"total_amount"`
+	DueBills     int     `json:"due_bills"`
+	OverdueBills int     `json:"overdue_bills"`
+	Bills        []Bill  `json:"bills"`
 }

@@ -158,16 +158,15 @@ import (
 
 // MockUserRepository implements UserRepository for testing
 type MockUserRepository struct {
-	users map[int]domain.User
+	users map[string]domain.User
 }
 
-func (r *MockUserRepository) SaveUser(ctx context.Context, user domain.User) (int, error) {
-	user.ID = len(r.users) + 1
+func (r *MockUserRepository) SaveUser(ctx context.Context, user domain.User) (string, error) {
 	r.users[user.ID] = user
 	return user.ID, nil
 }
 
-func (r *MockUserRepository) GetUserByID(ctx context.Context, userID int) (domain.User, error) {
+func (r *MockUserRepository) GetUserByID(ctx context.Context, userID string) (domain.User, error) {
 	user, exists := r.users[userID]
 	if !exists {
 		return domain.User{}, sql.ErrNoRows
@@ -192,7 +191,7 @@ func (r *MockUserRepository) UpdateUser(ctx context.Context, user domain.User) e
 	return nil
 }
 
-func (r *MockUserRepository) DeleteUser(ctx context.Context, userID int) (bool, error) {
+func (r *MockUserRepository) DeleteUser(ctx context.Context, userID string) (bool, error) {
 	if _, exists := r.users[userID]; !exists {
 		return false, nil
 	}
@@ -203,13 +202,13 @@ func (r *MockUserRepository) DeleteUser(ctx context.Context, userID int) (bool, 
 // Existing mock repositories
 type mockAccountRepo struct{}
 
-func (r *mockAccountRepo) SaveAccount(ctx context.Context, account domain.Account) (int, error) {
-	return 1, nil
+func (r *mockAccountRepo) SaveAccount(ctx context.Context, account domain.Account) (string, error) {
+	return account.ID, nil
 }
-func (r *mockAccountRepo) GetAccountsByUserID(ctx context.Context, userID int) ([]domain.Account, error) {
-	return []domain.Account{{ID: 1, UserID: userID, Provider: "electricity", Credentials: "test-cred"}}, nil
+func (r *mockAccountRepo) GetAccountsByUserID(ctx context.Context, userID string) ([]domain.Account, error) {
+	return []domain.Account{{ID: "1", UserID: userID, Provider: "electricity", Credentials: "test-cred"}}, nil
 }
-func (r *mockAccountRepo) DeleteAccount(ctx context.Context, accountID int) (bool, error) {
+func (r *mockAccountRepo) DeleteAccount(ctx context.Context, accountID string) (bool, error) {
 	return true, nil
 }
 func (r *mockAccountRepo) SaveBill(ctx context.Context, bill domain.Bill) error {
@@ -231,7 +230,7 @@ func (p *mockProvider) FetchBills(ctx context.Context, account domain.Account) (
 }
 
 func TestCreateUser(t *testing.T) {
-	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	repo := &MockUserRepository{users: make(map[string]domain.User)}
 	usecase := usecases.NewUserUsecase(repo)
 
 	user := domain.User{
@@ -242,15 +241,15 @@ func TestCreateUser(t *testing.T) {
 
 	userID, err := repo.SaveUser(context.Background(), user)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, userID)
+	assert.Equal(t, "test@example.com", userID)
 
-	savedUser, err := repo.GetUserByID(context.Background(), userID)
+	savedUser, err := repo.GetUserByID(context.Background(), "test@example.com")
 	assert.NoError(t, err)
 	assert.Equal(t, user.Email, savedUser.Email)
 }
 
 func TestGetUser(t *testing.T) {
-	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	repo := &MockUserRepository{users: make(map[string]domain.User)}
 	usecase := usecases.NewUserUsecase(repo)
 
 	user := domain.User{
@@ -259,19 +258,19 @@ func TestGetUser(t *testing.T) {
 		PasswordHash: "hashed_password",
 		CreatedAt:    time.Now(),
 	}
-	repo.users[1] = user
+	repo.users["test@example.com"] = user
 
-	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), 1)
+	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), "test@example.com")
 	assert.NoError(t, err)
 	assert.Equal(t, user.Email, fetchedUser.Email)
 
-	_, err = usecase.repo.GetUserByID(context.Background(), 999)
+	_, err = usecase.repo.GetUserByID(context.Background(), "nonexistent@example.com")
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, sql.ErrNoRows))
 }
 
 func TestUpdateUser(t *testing.T) {
-	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	repo := &MockUserRepository{users: make(map[string]domain.User)}
 	usecase := usecases.NewUserUsecase(repo)
 
 	user := domain.User{
@@ -280,7 +279,7 @@ func TestUpdateUser(t *testing.T) {
 		PasswordHash: "hashed_password",
 		CreatedAt:    time.Now(),
 	}
-	repo.users[1] = user
+	repo.users["test@example.com"] = user
 
 	updatedUser := domain.User{
 		ID:           1,
@@ -290,14 +289,14 @@ func TestUpdateUser(t *testing.T) {
 	err := usecase.repo.UpdateUser(context.Background(), updatedUser)
 	assert.NoError(t, err)
 
-	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), 1)
+	fetchedUser, err := usecase.repo.GetUserByID(context.Background(), "test@example.com")
 	assert.NoError(t, err)
 	assert.Equal(t, updatedUser.Email, fetchedUser.Email)
 	assert.Equal(t, updatedUser.PasswordHash, fetchedUser.PasswordHash)
 }
 
 func TestDeleteUser(t *testing.T) {
-	repo := &MockUserRepository{users: make(map[int]domain.User)}
+	repo := &MockUserRepository{users: make(map[string]domain.User)}
 	usecase := usecases.NewUserUsecase(repo)
 
 	user := domain.User{
@@ -306,13 +305,13 @@ func TestDeleteUser(t *testing.T) {
 		PasswordHash: "hashed_password",
 		CreatedAt:    time.Now(),
 	}
-	repo.users[1] = user
+	repo.users["test@example.com"] = user
 
-	deleted, err := usecase.repo.DeleteUser(context.Background(), 1)
+	deleted, err := usecase.repo.DeleteUser(context.Background(), "test@example.com")
 	assert.NoError(t, err)
 	assert.True(t, deleted)
 
-	_, err = usecase.repo.GetUserByID(context.Background(), 1)
+	_, err = usecase.repo.GetUserByID(context.Background(), "test@example.com")
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, sql.ErrNoRows))
 }

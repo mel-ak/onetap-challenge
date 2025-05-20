@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
-	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 
@@ -60,9 +60,11 @@ func (u *UserUsecase) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := domain.User{
-		Email:        req.Email,
-		PasswordHash: string(hash),
-		CreatedAt:    time.Now(),
+		ID:        uuid.New().String(),
+		Email:     req.Email,
+		Password:  string(hash),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	userID, err := u.repo.SaveUser(r.Context(), user)
@@ -81,9 +83,8 @@ func (u *UserUsecase) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 // GetUser handles GET /users/{user_id}
 func (u *UserUsecase) GetUser(w http.ResponseWriter, r *http.Request) {
-	userIDStr := mux.Vars(r)["user_id"]
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
+	userID := mux.Vars(r)["user_id"]
+	if userID == "" {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
@@ -104,9 +105,8 @@ func (u *UserUsecase) GetUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateUser handles PUT /users/{user_id}
 func (u *UserUsecase) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	userIDStr := mux.Vars(r)["user_id"]
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
+	userID := mux.Vars(r)["user_id"]
+	if userID == "" {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
@@ -133,9 +133,11 @@ func (u *UserUsecase) UpdateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid email format", http.StatusBadRequest)
 			return
 		}
-		if existing, err := u.repo.GetUserByEmail(r.Context(), req.Email); err == nil && existing.ID != userID {
-			http.Error(w, "Email already exists", http.StatusConflict)
-			return
+		if existing, err := u.repo.GetUserByEmail(r.Context(), req.Email); err == nil {
+			if existing.ID != userID {
+				http.Error(w, "Email already exists", http.StatusConflict)
+				return
+			}
 		}
 		user.Email = req.Email
 	}
@@ -150,8 +152,10 @@ func (u *UserUsecase) UpdateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to process password", http.StatusInternalServerError)
 			return
 		}
-		user.PasswordHash = string(hash)
+		user.Password = string(hash)
 	}
+
+	user.UpdatedAt = time.Now()
 
 	if err := u.repo.UpdateUser(r.Context(), user); err != nil {
 		http.Error(w, "Failed to update user", http.StatusInternalServerError)
@@ -164,9 +168,8 @@ func (u *UserUsecase) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 // DeleteUser handles DELETE /users/{user_id}
 func (u *UserUsecase) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	userIDStr := mux.Vars(r)["user_id"]
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
+	userID := mux.Vars(r)["user_id"]
+	if userID == "" {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
