@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/mel-ak/onetap-challenge/internal/domain"
@@ -28,7 +27,7 @@ func NewAccountUsecase(repo ports.AccountRepository, cache ports.CacheService) *
 // LinkAccount handles POST /accounts/link
 func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserID      int    `json:"user_id"`
+		UserID      string `json:"user_id"`
 		Provider    string `json:"provider"`
 		Credentials string `json:"credentials"`
 	}
@@ -39,13 +38,13 @@ func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Input validation
-	if req.UserID <= 0 || req.Provider == "" || req.Credentials == "" {
+	if req.UserID <= "0" || req.Provider == "" || req.Credentials == "" {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
 
 	account := domain.LinkedAccount{
-		UserID:      strconv.Itoa(req.UserID),
+		UserID:      req.UserID,
 		ProviderID:  req.Provider,
 		AccountID:   req.Credentials,
 		Credentials: req.Credentials,

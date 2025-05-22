@@ -79,14 +79,23 @@ func main() {
 	userUsecase := usecases.NewUserUsecase(dbRepo)
 	accountUsecase := usecases.NewAccountUsecase(dbRepo, redisClient)
 	billUsecase := usecases.NewBillUsecase(dbRepo, providerSvc, redisClient)
+	providerUsecase := usecases.NewProviderUsecase(dbRepo)
 
 	// Setup router
 	router := mux.NewRouter()
 	router.HandleFunc("/health", usecases.HealthCheck).Methods(http.MethodGet)
 	router.HandleFunc("/users", userUsecase.CreateUser).Methods(http.MethodPost)
+	router.HandleFunc("/users", userUsecase.ListUsers).Methods(http.MethodGet)
 	router.HandleFunc("/users/{user_id}", userUsecase.GetUser).Methods(http.MethodGet)
+
 	router.HandleFunc("/users/{user_id}", userUsecase.UpdateUser).Methods(http.MethodPut)
 	router.HandleFunc("/users/{user_id}", userUsecase.DeleteUser).Methods(http.MethodDelete)
+
+	// Provider routes
+	router.HandleFunc("/providers", providerUsecase.CreateProvider).Methods(http.MethodPost)
+	router.HandleFunc("/providers", providerUsecase.ListProviders).Methods(http.MethodGet)
+	router.HandleFunc("/providers/{provider_id}", providerUsecase.GetProvider).Methods(http.MethodGet)
+
 	router.HandleFunc("/accounts/link", accountUsecase.LinkAccount).Methods(http.MethodPost)
 	router.HandleFunc("/bills", billUsecase.FetchBills).Methods(http.MethodGet)
 	router.HandleFunc("/accounts/{account_id}", accountUsecase.DeleteAccount).Methods(http.MethodDelete)

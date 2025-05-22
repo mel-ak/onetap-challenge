@@ -8,11 +8,12 @@ import (
 
 // UserRepository defines the interface for user persistence
 type UserRepository interface {
-	SaveUser(ctx context.Context, user domain.User) (string, error)
-	GetUserByID(ctx context.Context, userID string) (domain.User, error)
-	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
-	UpdateUser(ctx context.Context, user domain.User) error
-	DeleteUser(ctx context.Context, userID string) (bool, error)
+	CreateUser(ctx context.Context, user *domain.User) error
+	GetUserByID(ctx context.Context, id string) (*domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	UpdateUser(ctx context.Context, user *domain.User) error
+	DeleteUser(ctx context.Context, id string) (bool, error)
+	ListUsers(ctx context.Context) ([]*domain.User, error)
 }
 
 // AccountRepository defines the interface for account persistence

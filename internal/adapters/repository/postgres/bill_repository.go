@@ -266,10 +266,34 @@ func (r *repository) UpdateUser(ctx context.Context, user *domain.User) error {
 	return err
 }
 
-func (r *repository) DeleteUser(ctx context.Context, id string) error {
+func (r *repository) DeleteUser(ctx context.Context, id string) (bool, error) {
 	query := `DELETE FROM users WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return false, err
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+// ListUsers retrieves all users
+func (r *repository) ListUsers(ctx context.Context) ([]*domain.User, error) {
+	query := `SELECT id, email, created_at, updated_at FROM users ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*domain.User
+	for rows.Next() {
+		user := &domain.User{}
+		if err := rows.Scan(&user.ID, &user.Email, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }
 
 // Provider operations

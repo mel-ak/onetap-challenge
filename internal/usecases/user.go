@@ -67,14 +67,13 @@ func (u *UserUsecase) CreateUser(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now(),
 	}
 
-	userID, err := u.repo.SaveUser(r.Context(), user)
-	if err != nil {
+	if err := u.repo.CreateUser(r.Context(), &user); err != nil {
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
 
 	resp := map[string]interface{}{
-		"user_id": userID,
+		"user_id": user.ID,
 		"message": "User created successfully",
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -186,6 +185,28 @@ func (u *UserUsecase) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]string{"message": "User deleted successfully"}
 	json.NewEncoder(w).Encode(resp)
+}
+
+// ListUsers handles GET /users
+func (u *UserUsecase) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := u.repo.ListUsers(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert users to response format (excluding sensitive data)
+	var response []map[string]interface{}
+	for _, user := range users {
+		response = append(response, map[string]interface{}{
+			"user_id":    user.ID,
+			"email":      user.Email,
+			"created_at": user.CreatedAt,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // isValidEmail validates email format

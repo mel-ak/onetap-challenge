@@ -13,7 +13,8 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id string) (*domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	UpdateUser(ctx context.Context, user *domain.User) error
-	DeleteUser(ctx context.Context, id string) error
+	DeleteUser(ctx context.Context, id string) (bool, error)
+	ListUsers(ctx context.Context) ([]*domain.User, error)
 
 	// Provider operations
 	CreateProvider(ctx context.Context, provider *domain.Provider) error
@@ -40,3 +41,6 @@ type Repository interface {
 	UpdateBill(ctx context.Context, bill *domain.Bill) error
 	DeleteBill(ctx context.Context, id string) error
 }
+
+// AccountRepository defines the interface for account-related database operations
+// ... existing code ...
