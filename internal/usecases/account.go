@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 
@@ -44,11 +45,14 @@ func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	account := domain.LinkedAccount{
+		ID:          uuid.New().String(),
 		UserID:      req.UserID,
 		ProviderID:  req.Provider,
 		AccountID:   req.Credentials,
 		Credentials: req.Credentials,
+		Status:      "active",
 		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
 	accountID, err := u.repo.SaveAccount(context.Background(), account)
@@ -85,5 +89,32 @@ func (u *AccountUsecase) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]string{"message": "Account deleted successfully"}
+	json.NewEncoder(w).Encode(resp)
+}
+
+// ListAccounts handles GET /accounts
+func (u *AccountUsecase) ListAccounts(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		http.Error(w, "user_id query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	accounts, err := u.repo.GetAccountsByUserID(context.Background(), userID)
+	if err != nil {
+		log.Printf("Failed to fetch accounts: %v", err)
+		http.Error(w, "Failed to fetch accounts", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove sensitive information
+	for i := range accounts {
+		accounts[i].Credentials = "" // Don't expose credentials
+	}
+
+	resp := map[string]interface{}{
+		"accounts": accounts,
+		"count":    len(accounts),
+	}
 	json.NewEncoder(w).Encode(resp)
 }

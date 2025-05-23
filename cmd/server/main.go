@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/mel-ak/onetap-challenge/internal/adapters/auth"
 	"github.com/mel-ak/onetap-challenge/internal/adapters/cache"
 	"github.com/mel-ak/onetap-challenge/internal/adapters/provider"
 	"github.com/mel-ak/onetap-challenge/internal/adapters/repository"
@@ -89,9 +90,10 @@ func main() {
 	}
 	redisClient := cache.NewRedisClient(cfg.Redis.Host + ":" + cfg.Redis.Port)
 	providerSvc := provider.NewHTTPProvider()
+	jwtService := auth.NewJWTService("your-secret-key")
 
 	// Initialize use cases
-	userUsecase := usecases.NewUserUsecase(dbRepo)
+	userUsecase := usecases.NewUserUsecase(dbRepo, jwtService)
 	accountUsecase := usecases.NewAccountUsecase(dbRepo, redisClient)
 	billUsecase := usecases.NewBillUsecase(dbRepo, providerSvc, redisClient)
 
@@ -103,6 +105,7 @@ func main() {
 	r.HandleFunc("/users/{user_id}", userUsecase.UpdateUser).Methods("PUT")
 	r.HandleFunc("/users/{user_id}", userUsecase.DeleteUser).Methods("DELETE")
 	r.HandleFunc("/accounts/link", accountUsecase.LinkAccount).Methods("POST")
+	r.HandleFunc("/accounts", accountUsecase.ListAccounts).Methods("GET")
 	r.HandleFunc("/bills", billUsecase.FetchBills).Methods("GET")
 	r.HandleFunc("/accounts/{account_id}", accountUsecase.DeleteAccount).Methods("DELETE")
 

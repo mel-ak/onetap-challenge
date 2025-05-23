@@ -18,13 +18,13 @@ func NewHTTPProvider() *HTTPProvider {
 }
 
 // FetchBills fetches bills from a provider
-func (p *HTTPProvider) FetchBills(ctx context.Context, account domain.LinkedAccount) ([]domain.Bill, error) {
+func (p *HTTPProvider) FetchBills(ctx context.Context, account domain.LinkedAccount) ([]*domain.Bill, error) {
 	// Simulate slow or failing API
 	if rand.Float32() < 0.2 {
 		return nil, fmt.Errorf("provider API timeout")
 	}
 
-	return []domain.Bill{
+	return []*domain.Bill{
 		{
 			LinkedAccountID: account.ID,
 			ProviderID:      account.ProviderID,

@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 )
@@ -30,12 +31,15 @@ type BillRepository interface {
 
 // ProviderAPIService defines the interface for third-party provider APIs
 type ProviderAPIService interface {
-	FetchBills(ctx context.Context, account domain.LinkedAccount) ([]domain.Bill, error)
+	FetchBills(ctx context.Context, account domain.LinkedAccount) ([]*domain.Bill, error)
 }
 
 // CacheService defines the interface for caching and rate limiting
 type CacheService interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value string, expiration time.Duration) error
+	Delete(ctx context.Context, key string) error
+	GetBills(ctx context.Context, key string) ([]*domain.Bill, error)
+	CacheBills(ctx context.Context, key string, bills []*domain.Bill, ttl int64) error
 	RateLimit(ctx context.Context, key string, limit int, window int64) error
-	GetBills(ctx context.Context, key string) ([]domain.Bill, error)
-	CacheBills(ctx context.Context, key string, bills []domain.Bill, ttl int64) error
 }

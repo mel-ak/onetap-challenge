@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mel-ak/onetap-challenge/internal/adapters/auth"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 
@@ -16,12 +17,16 @@ import (
 
 // UserUsecase handles user-related business logic
 type UserUsecase struct {
-	repo ports.UserRepository
+	repo       ports.UserRepository
+	jwtService *auth.JWTService
 }
 
 // NewUserUsecase creates a new user use case
-func NewUserUsecase(repo ports.UserRepository) *UserUsecase {
-	return &UserUsecase{repo: repo}
+func NewUserUsecase(repo ports.UserRepository, jwtService *auth.JWTService) *UserUsecase {
+	return &UserUsecase{
+		repo:       repo,
+		jwtService: jwtService,
+	}
 }
 
 // CreateUser handles POST /users
@@ -47,7 +52,7 @@ func (u *UserUsecase) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if email exists
-	if _, err := u.repo.GetUserByEmail(r.Context(), req.Email); err == nil {
+	if user, _ := u.repo.GetUserByEmail(r.Context(), req.Email); user != nil {
 		http.Error(w, "Email already exists", http.StatusConflict)
 		return
 	}
@@ -213,4 +218,40 @@ func (u *UserUsecase) ListUsers(w http.ResponseWriter, r *http.Request) {
 func isValidEmail(email string) bool {
 	re := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return re.MatchString(email)
+}
+
+func (u *UserUsecase) Login(w http.ResponseWriter, r *http.Request) {
+	var loginRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	user, err := u.repo.GetUserByEmail(r.Context(), loginRequest.Email)
+	if err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Compare password hashes using bcrypt
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Generate JWT token
+	token, err := u.jwtService.GenerateToken(user.ID)
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"token":   token,
+		"user_id": user.ID,
+	})
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -28,11 +27,6 @@ func NewBillUsecase(repo ports.AccountRepository, provider ports.ProviderAPIServ
 // FetchBills handles GET /bills
 func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	userIDStr := r.URL.Query().Get("user_id")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil || userID <= 0 {
-		http.Error(w, "Invalid or missing user_id", http.StatusBadRequest)
-		return
-	}
 
 	// Fetch accounts
 	accounts, err := u.repo.GetAccountsByUserID(context.Background(), userIDStr)
@@ -42,7 +36,7 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch bills concurrently
-	billsChan := make(chan []domain.Bill, len(accounts))
+	billsChan := make(chan []*domain.Bill, len(accounts))
 	var wg sync.WaitGroup
 
 	for _, acc := range accounts {
@@ -64,7 +58,7 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Collect bills
-	var allBills []domain.Bill
+	var allBills []*domain.Bill
 	for bills := range billsChan {
 		allBills = append(allBills, bills...)
 	}
@@ -85,7 +79,7 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.LinkedAccount) ([]domain.Bill, error) {
+func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.LinkedAccount) ([]*domain.Bill, error) {
 	key := fmt.Sprintf("rate_limit:%s:%s", acc.ProviderID, acc.ID)
 	cacheKey := fmt.Sprintf("bills:%s", acc.ID)
 
@@ -100,7 +94,7 @@ func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.Linked
 	}
 
 	// Fetch from provider with retries
-	var bills []domain.Bill
+	var bills []*domain.Bill
 	var err error
 	for i := 0; i < 3; i++ {
 		bills, err = u.provider.FetchBills(ctx, acc)
