@@ -15,7 +15,7 @@ This service allows users to aggregate and manage their utility bills from multi
 ### 1. Clone and Setup
 ```bash
 git clone <repository-url>
-cd bill-aggregator
+cd onetap-challenge
 ```
 
 ### 2. Environment Setup
@@ -25,7 +25,7 @@ The service uses the following environment variables (already configured in dock
   - Port: 5432
   - User: postgres
   - Password: postgres
-  - Database: bill_aggregator
+  - Database: billdb
 - Redis:
   - Host: redis
   - Port: 6379
