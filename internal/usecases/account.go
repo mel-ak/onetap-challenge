@@ -28,8 +28,7 @@ func NewAccountUsecase(repo ports.AccountRepository, cache ports.CacheService) *
 // LinkAccount handles POST /accounts/link
 func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserID      string `json:"user_id"`
-		Provider    string `json:"provider"`
+		ProviderID  string `json:"provider_id"`
 		Credentials string `json:"credentials"`
 	}
 
@@ -38,16 +37,23 @@ func (u *AccountUsecase) LinkAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID := r.Context().Value("user_id").(string)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Input validation
-	if req.UserID <= "0" || req.Provider == "" || req.Credentials == "" {
+	if req.ProviderID == "" || req.Credentials == "" {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
 
 	account := domain.LinkedAccount{
 		ID:          uuid.New().String(),
-		UserID:      req.UserID,
-		ProviderID:  req.Provider,
+		UserID:      userID,
+		ProviderID:  req.ProviderID,
 		AccountID:   req.Credentials,
 		Credentials: req.Credentials,
 		Status:      "active",

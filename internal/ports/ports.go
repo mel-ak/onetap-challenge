@@ -43,3 +43,9 @@ type CacheService interface {
 	CacheBills(ctx context.Context, key string, bills []*domain.Bill, ttl int64) error
 	RateLimit(ctx context.Context, key string, limit int, window int64) error
 }
+
+// NotificationService handles system notifications
+type NotificationService interface {
+	NotifyAdmin(ctx context.Context, message string, severity string) error
+	NotifyError(ctx context.Context, err error, context string) error
+}

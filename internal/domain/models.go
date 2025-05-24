@@ -50,8 +50,7 @@ type Bill struct {
 
 // BillSummary represents aggregated bill information
 type BillSummary struct {
-	TotalAmount  float64 `json:"total_amount"`
-	DueBills     int     `json:"due_bills"`
-	OverdueBills int     `json:"overdue_bills"`
-	Bills        []Bill  `json:"bills"`
+	BillCount int     `json:"bill_count"`
+	Bills     []Bill  `json:"bills"`
+	TotalDue  float64 `json:"total_due"`
 }

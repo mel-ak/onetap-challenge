@@ -1,11 +1,13 @@
 package usecases
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mel-ak/onetap-challenge/internal/adapters/providers"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 
@@ -14,12 +16,29 @@ import (
 
 // ProviderUsecase handles provider-related business logic
 type ProviderUsecase struct {
-	repo ports.Repository
+	repo      ports.Repository
+	providers map[string]providers.Provider
 }
 
 // NewProviderUsecase creates a new provider use case
 func NewProviderUsecase(repo ports.Repository) *ProviderUsecase {
-	return &ProviderUsecase{repo: repo}
+	// Initialize providers map with mock provider
+	providersMap := make(map[string]providers.Provider)
+	mockProvider := providers.NewMockProviderAdapter("http://localhost:8083")
+	providersMap["mock-provider"] = mockProvider
+
+	// Create mock provider in database if it doesn't exist
+	ctx := context.Background()
+	existingProvider, _ := repo.GetProviderByID(ctx, "mock-provider")
+	if existingProvider == nil {
+		provider := mockProvider.GetProviderInfo()
+		repo.CreateProvider(ctx, provider)
+	}
+
+	return &ProviderUsecase{
+		repo:      repo,
+		providers: providersMap,
+	}
 }
 
 // CreateProvider handles POST /providers

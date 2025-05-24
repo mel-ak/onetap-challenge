@@ -254,18 +254,16 @@ func (r *PostgresRepository) GetBillByID(ctx context.Context, id string) (*domai
 func (r *PostgresRepository) GetBillSummaryByUserID(ctx context.Context, userID string) (*domain.BillSummary, error) {
 	query := `
 		SELECT 
-			COALESCE(SUM(b.amount), 0) as total_amount,
-			COUNT(CASE WHEN b.status = 'unpaid' THEN 1 END) as due_bills,
-			COUNT(CASE WHEN b.status = 'overdue' THEN 1 END) as overdue_bills
+			COUNT(*) as bill_count,
+			COALESCE(SUM(CASE WHEN b.status IN ('unpaid', 'overdue') THEN b.amount ELSE 0 END), 0) as total_due
 		FROM bills b
 		JOIN linked_accounts la ON b.linked_account_id = la.id
 		WHERE la.user_id = $1
 	`
 	summary := &domain.BillSummary{}
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&summary.TotalAmount,
-		&summary.DueBills,
-		&summary.OverdueBills,
+		&summary.BillCount,
+		&summary.TotalDue,
 	)
 	if err != nil {
 		return nil, err

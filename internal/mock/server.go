@@ -95,11 +95,12 @@ func (s *MockServer) generateRandomBill() Bill {
 	status := statuses[rand.Intn(len(statuses))]
 
 	dueDate := time.Now().AddDate(0, 0, rand.Intn(30))
+	amount := float64(rand.Intn(1000)) + rand.Float64()
 
 	return Bill{
 		ID:          fmt.Sprintf("BILL-%d", rand.Intn(10000)),
 		Provider:    s.providers[rand.Intn(len(s.providers))],
-		Amount:      float64(rand.Intn(1000)) + rand.Float64(),
+		Amount:      amount,
 		DueDate:     dueDate,
 		Status:      status,
 		Description: fmt.Sprintf("Bill for %s services", s.providers[rand.Intn(len(s.providers))]),

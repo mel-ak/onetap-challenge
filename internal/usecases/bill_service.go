@@ -2,9 +2,12 @@ package usecases
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"sync"
 	"time"
 
+	"github.com/mel-ak/onetap-challenge/internal/adapters/providers"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 )
@@ -12,13 +15,19 @@ import (
 type billService struct {
 	repo        ports.Repository
 	rateLimiter *RateLimiter
+	providers   map[string]providers.Provider
 }
 
 // NewBillService creates a new instance of the bill service
 func NewBillService(repo ports.Repository) ports.BillService {
+	// Initialize providers map with mock provider
+	providersMap := make(map[string]providers.Provider)
+	providersMap["mock-provider"] = providers.NewMockProviderAdapter("http://localhost:8083")
+
 	return &billService{
 		repo:        repo,
 		rateLimiter: NewRateLimiter(100, time.Minute), // 100 requests per minute
+		providers:   providersMap,
 	}
 }
 
@@ -28,6 +37,14 @@ func (s *billService) FetchBills(ctx context.Context, userID string) (*domain.Bi
 	accounts, err := s.repo.GetLinkedAccountsByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(accounts) == 0 {
+		return &domain.BillSummary{
+			BillCount: 0,
+			Bills:     nil,
+			TotalDue:  0,
+		}, nil
 	}
 
 	var wg sync.WaitGroup
@@ -73,18 +90,18 @@ func (s *billService) FetchBills(ctx context.Context, userID string) (*domain.Bi
 
 	// Calculate summary
 	summary := &domain.BillSummary{
-		Bills: make([]domain.Bill, len(allBills)),
+		BillCount: len(allBills),
+		Bills:     make([]domain.Bill, len(allBills)),
 	}
 
+	var totalDue float64
 	for i, bill := range allBills {
 		summary.Bills[i] = *bill
-		summary.TotalAmount += bill.Amount
-		if bill.Status == "unpaid" {
-			summary.DueBills++
-		} else if bill.Status == "overdue" {
-			summary.OverdueBills++
+		if bill.Status == "unpaid" || bill.Status == "overdue" {
+			totalDue += bill.Amount
 		}
 	}
+	summary.TotalDue = totalDue
 
 	return summary, nil
 }
@@ -163,19 +180,36 @@ func (s *billService) GetBillSummary(ctx context.Context, userID string) (*domai
 
 // fetchBillsForAccount is a helper method to fetch bills for a specific account
 func (s *billService) fetchBillsForAccount(ctx context.Context, account *domain.LinkedAccount) ([]*domain.Bill, error) {
-	// In a real implementation, this would call the provider's API
-	// For now, we'll return mock data
-	return []*domain.Bill{
-		{
-			ID:              "1",
-			LinkedAccountID: account.ID,
-			ProviderID:      account.ProviderID,
-			Amount:          100.00,
-			DueDate:         time.Now().AddDate(0, 0, 7),
-			Status:          "unpaid",
-			BillDate:        time.Now(),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		},
-	}, nil
+	provider, exists := s.providers[account.ProviderID]
+	if !exists {
+		return nil, fmt.Errorf("provider not found: %s", account.ProviderID)
+	}
+
+	return provider.FetchBills(ctx, account.ID)
+}
+
+// StartPeriodicUpdates starts the background job for periodic bill updates
+func (s *billService) StartPeriodicUpdates(ctx context.Context) {
+	ticker := time.NewTicker(24 * time.Hour) // Update daily
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				users, err := s.repo.ListUsers(ctx)
+				if err != nil {
+					log.Printf("Error fetching users for periodic update: %v", err)
+					continue
+				}
+
+				for _, user := range users {
+					if err := s.RefreshBills(ctx, user.ID); err != nil {
+						log.Printf("Error refreshing bills for user %s: %v", user.ID, err)
+					}
+				}
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 }
