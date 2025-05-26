@@ -39,6 +39,8 @@ func (s *billService) FetchBills(ctx context.Context, userID string) (*domain.Bi
 		return nil, err
 	}
 
+	fmt.Println("accounts", accounts)
+
 	if len(accounts) == 0 {
 		return &domain.BillSummary{
 			BillCount: 0,

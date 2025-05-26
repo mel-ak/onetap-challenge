@@ -272,7 +272,6 @@ func TestGetUser(t *testing.T) {
 func TestUpdateUser(t *testing.T) {
 	repo := &MockUserRepository{users: make(map[string]domain.User)}
 	usecase := usecases.NewUserUsecase(repo)
-
 	user := domain.User{
 		ID:           1,
 		Email:        "test@example.com",

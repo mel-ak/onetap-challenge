@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/mel-ak/onetap-challenge/internal/domain"
 	"github.com/mel-ak/onetap-challenge/internal/ports"
 )
@@ -66,9 +67,9 @@ func (u *BillUsecase) FetchBills(w http.ResponseWriter, r *http.Request) {
 	// Calculate total amount due
 	var totalDue float64
 	for _, bill := range allBills {
-		if bill.Status == "unpaid" || bill.Status == "overdue" {
-			totalDue += bill.Amount
-		}
+		// if bill.Status == "unpaid" || bill.Status == "overdue" {
+		totalDue += bill.Amount
+		// }
 	}
 
 	resp := map[string]interface{}{
@@ -110,4 +111,88 @@ func (u *BillUsecase) fetchBillsWithRetry(ctx context.Context, acc domain.Linked
 	// Cache and save bills
 	u.cache.CacheBills(ctx, cacheKey, bills, int64(time.Hour.Seconds()))
 	return bills, nil
+}
+
+// FetchBillsByProvider handles GET /providers/{provider_id}/bills
+func (u *BillUsecase) FetchBillsByProvider(w http.ResponseWriter, r *http.Request) {
+	// Get provider ID from URL parameters
+	vars := mux.Vars(r)
+	providerID := vars["provider_id"]
+
+	// Get user ID from context (set by auth middleware)
+	userID := r.Context().Value("user_id").(string)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get all accounts for the user
+	accounts, err := u.repo.GetAccountsByUserID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "Failed to fetch accounts", http.StatusInternalServerError)
+		return
+	}
+
+	// Filter accounts for the specific provider
+	var providerAccounts []domain.LinkedAccount
+	for _, acc := range accounts {
+		if acc.ProviderID == providerID {
+			providerAccounts = append(providerAccounts, acc)
+		}
+	}
+
+	if len(providerAccounts) == 0 {
+		// Return empty response if no accounts found for the provider
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"bills":      []interface{}{},
+			"total_due":  0,
+			"bill_count": 0,
+		})
+		return
+	}
+
+	// Fetch bills concurrently for all accounts of this provider
+	billsChan := make(chan []*domain.Bill, len(providerAccounts))
+	var wg sync.WaitGroup
+
+	for _, acc := range providerAccounts {
+		wg.Add(1)
+		go func(acc domain.LinkedAccount) {
+			defer wg.Done()
+			bills, err := u.fetchBillsWithRetry(r.Context(), acc)
+			if err != nil {
+				return
+			}
+			billsChan <- bills
+		}(acc)
+	}
+
+	// Close channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(billsChan)
+	}()
+
+	// Collect bills
+	var allBills []*domain.Bill
+	for bills := range billsChan {
+		allBills = append(allBills, bills...)
+	}
+
+	// Calculate total amount due
+	var totalDue float64
+	for _, bill := range allBills {
+		if bill.Status == "unpaid" || bill.Status == "overdue" {
+			totalDue += bill.Amount
+		}
+	}
+
+	// Return response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"bills":      allBills,
+		"total_due":  totalDue,
+		"bill_count": len(allBills),
+	})
 }
